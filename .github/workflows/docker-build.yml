@@ -29,8 +29,8 @@ jobs:
     - name: Get Azure DevOps Agent Version
       id: agent-version
       run: |
-        # Construire le stage temporaire pour extraire la version
-        docker build --target temp-version -t temp-version .
+        # Construire le stage temporaire pour extraire la version (Linux uniquement)
+        docker build --target temp-version --platform linux/amd64 -t temp-version .
         AGENT_VERSION=$(docker run --rm temp-version cat /tmp/agent_version.txt)
         echo "agent-version=$AGENT_VERSION" >> $GITHUB_OUTPUT
         echo "Azure DevOps Agent Version: $AGENT_VERSION"
