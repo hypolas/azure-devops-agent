@@ -64,12 +64,8 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
           type=sha,prefix=sha-
           type=raw,value=${{ steps.build-version.outputs.combined-version }}
-          type=raw,value=${{ steps.agent-version.outputs.agent-version }}
-          type=raw,value=agent-${{ steps.agent-version.outputs.agent-version }}
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Build and push Docker image
@@ -134,9 +130,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Specific combined version (agent-build)" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.build-version.outputs.combined-version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Specific agent version" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.agent-version.outputs.agent-version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         else
           echo "### 🏷️ To Publish" >> $GITHUB_STEP_SUMMARY
