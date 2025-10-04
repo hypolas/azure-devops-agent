@@ -76,8 +76,9 @@ done
 if [ -z "$FOUND_URL" ]; then
     echo "❌ Aucun binaire compatible trouvé pour $OS/$GITHUB_ARCH"
     echo "Assets disponibles:"
-    echo "$ASSETS"
-    exit 1
+    echo "$ASSETS" | head -10
+    echo "⚠️ Plateforme non supportée: $OS/$GITHUB_ARCH"
+    exit 2  # Code d'erreur spécifique pour plateforme non supportée
 fi
 
 echo "⬇️ Téléchargement: $FOUND_URL"
