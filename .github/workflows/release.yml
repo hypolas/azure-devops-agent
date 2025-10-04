@@ -32,16 +32,14 @@ jobs:
         echo "agent-version=$AGENT_VERSION" >> $GITHUB_OUTPUT
         echo "Azure DevOps Agent Version: $AGENT_VERSION"
 
-    - name: Generate Build Version
-      id: build-version
+    - name: Generate Combined Version
+      id: combined-version
       run: |
-        # Pour les releases, utiliser le tag comme version de build
-        BUILD_VERSION="${GITHUB_REF#refs/tags/}"
-        echo "build-version=$BUILD_VERSION" >> $GITHUB_OUTPUT
-        echo "Build Version: $BUILD_VERSION"
-        
-        # Version combinée: agent-version-build-version
-        COMBINED_VERSION="${{ steps.agent-version.outputs.agent-version }}-$BUILD_VERSION"
+        # Extract tag version (e.g., v1.0.0-beta.05)
+        TAG_VERSION="${GITHUB_REF#refs/tags/}"
+
+        # Combined version: agent-version-tag
+        COMBINED_VERSION="${{ steps.agent-version.outputs.agent-version }}-${TAG_VERSION}"
         echo "combined-version=$COMBINED_VERSION" >> $GITHUB_OUTPUT
         echo "Combined Version: $COMBINED_VERSION"
 
@@ -63,7 +61,8 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=raw,value=latest
-          type=raw,value=${{ steps.build-version.outputs.combined-version }}
+          type=raw,value=${{ steps.combined-version.outputs.combined-version }}
+          type=raw,value=${{ steps.agent-version.outputs.agent-version }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -83,38 +82,37 @@ jobs:
       run: |
         cat > release_notes.md << EOF
         ## 🚀 Azure DevOps Docker Agent ${{ steps.version.outputs.VERSION }}
-        
+
         ### 🎯 Agent Information
         - **Azure DevOps Agent Version**: \`${{ steps.agent-version.outputs.agent-version }}\`
-        - **Container Version**: \`${{ steps.version.outputs.VERSION }}\`
-        - **Combined Version**: \`${{ steps.build-version.outputs.combined-version }}\`
-        
+        - **Release Tag**: \`${{ steps.version.outputs.VERSION }}\`
+        - **Combined Version**: \`${{ steps.combined-version.outputs.combined-version }}\`
+
         ### 📦 Container Images
-        - **AMD64**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}-amd64\`
-        - **ARM64**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}-arm64\`
-        - **ARMv7**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}-armv7\`
-        - **Multi-arch**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}\`
+        - **Latest**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`
+        - **Combined Version**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.combined-version.outputs.combined-version }}\`
         - **Agent Version**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.agent-version.outputs.agent-version }}\`
-        
+        - **Multi-arch support**: linux/amd64, linux/arm64, linux/arm/v7
+
         ### ✨ Features
         - ✅ Azure DevOps Agent ${{ steps.agent-version.outputs.agent-version }} with container support
         - ⚡ Lightweight aws-ssm binary (~10MB vs ~100MB+ AWS CLI)
         - 🔐 AWS Secrets Manager integration
         - 🐳 Docker-in-Docker support
         - 🛡️ IMDSv2 security for AWS metadata
-        
+
         ### 🔧 Usage
         \`\`\`bash
-        # Par version du conteneur
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-        
-        # Par version combinée (agent-container)
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.build-version.outputs.combined-version }}
-        
-        # Par version de l'agent Azure DevOps
+        # Latest image
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+        # Combined version (recommended - agent + release tag)
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.combined-version.outputs.combined-version }}
+
+        # Agent version only
         docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.agent-version.outputs.agent-version }}
         \`\`\`
-        
+
         ### 📋 Quick Start
         \`\`\`bash
         docker run -d \\
@@ -125,7 +123,7 @@ jobs:
           -e AZP_POOL="your-pool" \\
           -e AZP_AGENT_NAME="my-agent" \\
           -e AGENT_NUMBER="1" \\
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.combined-version.outputs.combined-version }}
         \`\`\`
         EOF
 
