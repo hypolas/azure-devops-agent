@@ -1,0 +1,181 @@
+name: Build Windows Container Images
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: hypolas/azure-devops-agent
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - platform: windows/amd64
+            tag-suffix: windows-amd64
+            base-image: mcr.microsoft.com/windows/servercore:ltsc2022
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch,suffix=-${{ matrix.tag-suffix }}
+          type=semver,pattern={{version}},suffix=-${{ matrix.tag-suffix }}
+          type=sha,prefix=sha-,suffix=-${{ matrix.tag-suffix }}
+
+    - name: Create Windows Dockerfile
+      run: |
+        @'
+        FROM ${{ matrix.base-image }}
+        
+        # Install PowerShell and basic tools
+        SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+        
+        # Install Chocolatey
+        RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        
+        # Install required tools
+        RUN choco install -y git curl jq docker-cli
+        
+        # Download aws-ssm binary
+        RUN $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }; \
+            $url = "https://github.com/hypolas/aws-ssm-light/releases/latest/download/aws-ssm-windows-$arch.exe"; \
+            Invoke-WebRequest -Uri $url -OutFile "C:\Windows\System32\aws-ssm.exe"
+        
+        # Create working directory
+        WORKDIR C:\azagent
+        
+        # Download Azure DevOps agent
+        RUN $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/latest"; \
+            $version = $latestRelease.tag_name.TrimStart('v'); \
+            $downloadUrl = "https://download.agent.dev.azure.com/agent/$version/vsts-agent-win-x64-$version.zip"; \
+            Invoke-WebRequest -Uri $downloadUrl -OutFile "agent.zip"; \
+            Expand-Archive -Path "agent.zip" -DestinationPath "C:\azagent"; \
+            Remove-Item "agent.zip"
+        
+        # Copy scripts
+        COPY scripts/ C:/azagent/scripts/
+        COPY entrypoint-windows.ps1 C:/azagent/
+        
+        # Set environment variables
+        ENV AZP_URL=""
+        ENV AZP_TOKEN=""
+        ENV AZP_POOL=""
+        ENV AZP_AGENT_NAME=""
+        ENV AGENT_NUMBER=""
+        
+        ENTRYPOINT ["powershell", "-File", "C:/azagent/entrypoint-windows.ps1"]
+        '@ | Out-File -FilePath Dockerfile.windows -Encoding utf8
+
+    - name: Create Windows entrypoint script
+      run: |
+        @'
+        param(
+            [string]$AZP_URL = $env:AZP_URL,
+            [string]$AZP_TOKEN = $env:AZP_TOKEN,
+            [string]$AZP_POOL = $env:AZP_POOL,
+            [string]$AZP_AGENT_NAME = $env:AZP_AGENT_NAME,
+            [string]$AGENT_NUMBER = $env:AGENT_NUMBER
+        )
+        
+        if (-not $AZP_URL) {
+            throw "AZP_URL must be set"
+        }
+        
+        if (-not $AZP_TOKEN) {
+            # Try to get from AWS Secrets Manager using aws-ssm
+            if ($env:AZURE_DEVOPS_TOKEN_SECRET_ARN -and $env:AWS_REGION) {
+                Write-Host "Retrieving token from AWS Secrets Manager..."
+                try {
+                    $AZP_TOKEN = & aws-ssm $env:AZURE_DEVOPS_TOKEN_SECRET_ARN $env:AWS_REGION
+                    Write-Host "✅ Token retrieved from AWS Secrets Manager"
+                } catch {
+                    throw "❌ Failed to retrieve token from Secrets Manager: $_"
+                }
+            } else {
+                throw "AZP_TOKEN must be set or AWS Secrets Manager configured"
+            }
+        }
+        
+        if (-not $AZP_POOL) {
+            throw "AZP_POOL must be set"
+        }
+        
+        if (-not $AGENT_NUMBER) {
+            throw "AGENT_NUMBER must be set"
+        }
+        
+        $agentName = "$AZP_AGENT_NAME-$AGENT_NUMBER-windows"
+        
+        Write-Host "=========================================="
+        Write-Host "Configuring Azure DevOps Agent"
+        Write-Host "=========================================="
+        Write-Host "URL: $AZP_URL"
+        Write-Host "Pool: $AZP_POOL"
+        Write-Host "Agent Name: $agentName"
+        Write-Host "=========================================="
+        
+        # Configure the agent
+        & .\config.cmd --unattended --url $AZP_URL --auth pat --token $AZP_TOKEN --pool $AZP_POOL --agent $agentName --replace --acceptTeeEula
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Agent configuration failed"
+        }
+        
+        Write-Host "Agent configured successfully. Starting..."
+        
+        # Start the agent
+        & .\run.cmd
+        '@ | Out-File -FilePath entrypoint-windows.ps1 -Encoding utf8
+
+    - name: Build Windows Docker image
+      run: |
+        docker build -f Dockerfile.windows -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.tag-suffix }} .
+
+    - name: Push Windows Docker image
+      if: github.event_name != 'pull_request'
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.tag-suffix }}
+
+    - name: Generate Windows build summary
+      run: |
+        Write-Output "## 🪟 Windows Container Build Summary" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "| Property | Value |" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "|----------|-------|" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "| Image | ``${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.tag-suffix }}`` |" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "| Platform | ${{ matrix.platform }} |" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "| Base Image | ${{ matrix.base-image }} |" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "| AWS SSM | ✅ Enabled |" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "### 📦 Usage" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "``````powershell" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.tag-suffix }}" >> $env:GITHUB_STEP_SUMMARY
+        Write-Output "``````" >> $env:GITHUB_STEP_SUMMARY
