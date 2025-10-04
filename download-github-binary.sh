@@ -22,9 +22,9 @@ echo "Détection: OS=$OS, Architecture=$ARCH"
 
 # Mapper les architectures
 case "$ARCH" in
-    amd64|x86_64) GITHUB_ARCH="x86_64" ;;
-    arm64|aarch64) GITHUB_ARCH="aarch64" ;;
-    armhf|armv7l) GITHUB_ARCH="armv7" ;;
+    amd64|x86_64) GITHUB_ARCH="amd64" ;;
+    arm64|aarch64) GITHUB_ARCH="arm64" ;;
+    armhf|armv7l|armv7) GITHUB_ARCH="arm" ;;
     arm*) GITHUB_ARCH="arm" ;;
     *) echo "⚠️ Architecture non standard détectée: $ARCH" && GITHUB_ARCH="$ARCH" ;;
 esac
