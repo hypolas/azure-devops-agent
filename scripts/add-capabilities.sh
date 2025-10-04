@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script d'ajout des capabilities
+# Script to add capabilities
 # Arguments: $1=DEFAULT_CONTAINER_IMAGE, $2=DEFAULT_VOLUMES, $3=AGENT_NUMBER
 
 set -e
@@ -7,17 +7,18 @@ set -e
 DEFAULT_CONTAINER_IMAGE=$1
 DEFAULT_VOLUMES=$2
 AGENT_NUMBER=$3
+INSTALL_FOLDER=$4
 
-echo "Ajout des capabilities avec:"
-echo "  Container par défaut: $DEFAULT_CONTAINER_IMAGE"
-echo "  Volumes par défaut: $DEFAULT_VOLUMES"
+echo "Adding capabilities with:"
+echo "  Default container: $DEFAULT_CONTAINER_IMAGE"
+echo "  Default volumes: $DEFAULT_VOLUMES"
 
-# Ajouter les capabilities pour l'agent de cette instance
-echo "Ajout des capabilities pour l'agent $AGENT_NUMBER..."
+# Add capabilities for this instance's agent
+echo "Adding capabilities for agent $AGENT_NUMBER..."
 
-cd "/opt/azagent/$AGENT_NUMBER"
+cd "$INSTALL_FOLDER/$AGENT_NUMBER"
 
-# Créer le fichier .capabilities
+# Create .capabilities file
 cat > .capabilities << EOF
 docker=true
 docker-compose=true
@@ -30,4 +31,4 @@ default-volumes=$DEFAULT_VOLUMES
 auto-mount-volumes=true
 EOF
 
-echo "Capabilities ajoutées pour l'agent $AGENT_NUMBER."
+echo "Capabilities added for agent $AGENT_NUMBER."

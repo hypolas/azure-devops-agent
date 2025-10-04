@@ -17,10 +17,9 @@ This Docker image configures and runs an Azure DevOps agent with container suppo
 - `AZP_POOL`: Agent pool name
 - `AZP_AGENT_NAME`: Base agent name (will be suffixed with -${AGENT_NUMBER})
 - `AGENT_NUMBER`: **Mandatory** - Unique identifier for each agent instance. Required to avoid configuration conflicts when mounting Docker volumes on disk.
+- `INSTALL_FOLDER`: **Mandatory** - Agent installation directory. Must be identical in both environment variable and volume mount path.
 
 ## Optional Environment Variables
-
-- `INSTALL_FOLDER`: Agent installation directory (default: /opt/azagent)
 - `INSTANCE_ID`: AWS instance ID (automatically retrieved with IMDSv2 if not provided)
 - `AWS_REGION`: AWS region for Secrets Manager (ex: eu-west-1)
 - `AZURE_DEVOPS_TOKEN_SECRET_ARN`: ARN of AWS secret containing Azure DevOps token
@@ -78,7 +77,84 @@ docker run -d \
 
 ### With Docker Compose (Recommended)
 
-The provided `docker-compose.yml` file automatically configures 7 agents (instances 1 to 7):
+Use the provided `docker-compose.yml` file (using environment variables):
+
+```yaml
+version: '3.8'
+
+services:
+  azure-agent:
+    build:
+      context: .
+      args:
+        # aws-ssm installed by default (hypolas/aws-ssm-light)
+        INSTALL_AWS_SSM: "true"
+
+    container_name: azure-devops-agent
+    hostname: azure-agent
+
+    environment:
+      # Azure DevOps configuration (required)
+      - AZP_URL=${AZP_URL}
+      - AZP_POOL=${AZP_POOL}
+      - AZP_AGENT_NAME=${AZP_AGENT_NAME:-azure-agent}
+      - AGENT_NUMBER=${AGENT_NUMBER:-1}
+      - INSTALL_FOLDER=${INSTALL_FOLDER}
+
+      # AWS for token retrieval (if AZP_TOKEN not provided)
+      - AWS_REGION=${AWS_REGION}
+      - AZURE_DEVOPS_TOKEN_SECRET_ARN=${AZURE_DEVOPS_TOKEN_SECRET_ARN}
+
+      # Direct token (optional, takes priority over AWS)
+      - AZP_TOKEN=${AZP_TOKEN}
+
+      # Container configuration
+      - DEFAULT_CONTAINER_IMAGE=ubuntu:22.04
+      - DEFAULT_VOLUMES=/var/run/docker.sock:/var/run/docker.sock,/cache:/cache,/data:/data
+
+    volumes:
+      # Docker socket for builds
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${INSTALL_FOLDER}:${INSTALL_FOLDER}
+    restart: unless-stopped
+
+    # Healthcheck to verify agent is running
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'Agent.Listener' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+```
+
+#### ⚠️ Critical: INSTALL_FOLDER Consistency
+
+**The `INSTALL_FOLDER` value MUST be identical in both the environment variable and the volume mount path. This is MANDATORY for the agent to function properly.**
+
+```yaml
+# ✅ CORRECT - Same path in both places (using variable)
+environment:
+  - INSTALL_FOLDER=${INSTALL_FOLDER}
+volumes:
+  - ${INSTALL_FOLDER}:${INSTALL_FOLDER}
+
+# Example with .env file:
+# INSTALL_FOLDER=/opt/azagent
+
+# ❌ WRONG - Different paths will cause FAILURE
+environment:
+  - INSTALL_FOLDER=/opt/azagent
+volumes:
+  - /opt/agent:/opt/azagent  # ← Different path, agent will NOT work
+```
+
+**Why this matters:**
+- The agent creates its configuration inside `${INSTALL_FOLDER}/${AGENT_NUMBER}/`
+- The volume mount must map to the exact same path
+- Mismatched paths will prevent the agent from finding its configuration files
+- **The service will FAIL to start if paths don't match**
+
+**Deployment:**
 
 ```bash
 # Copy the example file

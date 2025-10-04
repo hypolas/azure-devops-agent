@@ -5,50 +5,41 @@ services:
     build:
       context: .
       args:
-        # aws-ssm installé par défaut (hypolas/aws-ssm-light)
+        # aws-ssm installed by default (hypolas/aws-ssm-light)
         INSTALL_AWS_SSM: "true"
-    
+
     container_name: azure-devops-agent
     hostname: azure-agent
-    
+
     environment:
-      # Configuration Azure DevOps (obligatoire)
+      # Azure DevOps configuration (required)
       - AZP_URL=${AZP_URL}
       - AZP_POOL=${AZP_POOL}
       - AZP_AGENT_NAME=${AZP_AGENT_NAME:-azure-agent}
       - AGENT_NUMBER=${AGENT_NUMBER:-1}
-      
-      # AWS pour récupération du token (si pas AZP_TOKEN fourni)
+      - INSTALL_FOLDER=${INSTALL_FOLDER}
+
+      # AWS for token retrieval (if AZP_TOKEN not provided)
       - AWS_REGION=${AWS_REGION}
       - AZURE_DEVOPS_TOKEN_SECRET_ARN=${AZURE_DEVOPS_TOKEN_SECRET_ARN}
-      
-      # Token direct (optionnel, prioritaire sur AWS)
+
+      # Direct token (optional, takes priority over AWS)
       - AZP_TOKEN=${AZP_TOKEN}
-      
-      # Configuration conteneur
+
+      # Container configuration
       - DEFAULT_CONTAINER_IMAGE=ubuntu:22.04
       - DEFAULT_VOLUMES=/var/run/docker.sock:/var/run/docker.sock,/cache:/cache,/data:/data
-    
+
     volumes:
-      # Socket Docker pour builds
+      # Docker socket for builds
       - /var/run/docker.sock:/var/run/docker.sock
-      # Cache persistant
-      - ./cache:/cache
-      - ./data:/data
-    
+      - ${INSTALL_FOLDER}:${INSTALL_FOLDER}
     restart: unless-stopped
-    
-    # Healthcheck pour vérifier que l'agent fonctionne
+
+    # Healthcheck to verify agent is running
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'Agent.Listener' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-
-# Volumes nommés pour persistance
-volumes:
-  agent-cache:
-    driver: local
-  agent-data:
-    driver: local

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script de configuration de l'agent Azure DevOps
+# Azure DevOps agent configuration script
 # Arguments: $1=INSTALL_FOLDER, $2=AZP_URL, $3=AZP_TOKEN, $4=AZP_POOL, $5=AZP_AGENT_NAME, $6=AGENT_NUMBER, $7=INSTANCE_ID
 
 set -e
@@ -12,19 +12,19 @@ AZP_AGENT_NAME=$5
 AGENT_NUMBER=$6
 INSTANCE_ID=$7
 
-echo "Répertoire de l'agent: $INSTALL_FOLDER"
-echo "Configuration de l'agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}..."
+echo "Agent directory: $INSTALL_FOLDER"
+echo "Configuring agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}..."
 
-# Créer le répertoire pour cette instance
-mkdir -p "/opt/azagent/$AGENT_NUMBER"
+# Create directory for this instance
+sudo mkdir -p "$INSTALL_FOLDER/$AGENT_NUMBER" && sudo chown azureagent:azureagent "$INSTALL_FOLDER/$AGENT_NUMBER"
 
-# Copier les fichiers de l'agent depuis le dossier agent
-cp -r "$INSTALL_FOLDER/agent"/* "/opt/azagent/$AGENT_NUMBER/"
+# Copy agent files from agent folder
+cp -r "/opt/dl/"* "$INSTALL_FOLDER/$AGENT_NUMBER/"
 
-# Aller dans le répertoire de l'agent
-cd "/opt/azagent/$AGENT_NUMBER"
+# Go to agent directory
+cd "$INSTALL_FOLDER/$AGENT_NUMBER"
 
-# Configurer l'agent
+# Configure the agent
 ./config.sh \
   --unattended \
   --url "$AZP_URL" \
@@ -32,8 +32,8 @@ cd "/opt/azagent/$AGENT_NUMBER"
   --token "$AZP_TOKEN" \
   --pool "$AZP_POOL" \
   --agent "${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}" \
-  --work "/opt/azagent/${AGENT_NUMBER}/_work" \
+  --work "${INSTALL_FOLDER}/${AGENT_NUMBER}/_work" \
   --replace \
   --acceptTeeEula
 
-echo "Agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID} configuré avec succès."
+echo "Agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID} configured successfully."

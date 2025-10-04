@@ -8,51 +8,49 @@ services:
     hostname: azure-agent-test
     restart: unless-stopped
     
-    # Variables d'environnement pour tester l'image
+    # Environment variables to test the image
     environment:
-      # Configuration Azure DevOps (OBLIGATOIRES pour un vrai test)
-      # ⚠️ Remplacez ces valeurs par vos vraies valeurs
-      - AZP_URL=https://dev.azure.com/your-org
-      - AZP_TOKEN=test-token
-      - AZP_POOL=aws-pool
+      # Azure DevOps configuration (REQUIRED for actual testing)
+      # ⚠️ Replace these values with your actual values
+      - AZP_URL=${AZP_URL}
+      - AZP_TOKEN=${AZP_TOKEN}
+      - AZP_POOL=${AZP_POOL}
       - AZP_AGENT_NAME=test-${HOSTNAME:-local}
       - AGENT_NUMBER=1
       - INSTANCE_ID=i-1234567890abcdef0
-      
-      # Configuration AWS (OPTIONNELLES - pour récupérer le token depuis AWS Secrets Manager)
-      # Si vous utilisez AWS Secrets Manager au lieu d'AZP_TOKEN direct :
+      - INSTALL_FOLDER=${INSTALL_FOLDER}
+
+      # AWS configuration (OPTIONAL - to retrieve token from AWS Secrets Manager)
+      # If using AWS Secrets Manager instead of direct AZP_TOKEN:
       # - AWS_REGION=eu-west-1
       # - AZURE_DEVOPS_TOKEN_SECRET_ARN=arn:aws:secretsmanager:eu-west-1:account:secret:azure-devops-token
-      
-      # Configuration EC2 (OPTIONNELLE - pour noms automatiques)
+
+      # EC2 configuration (OPTIONAL - for automatic names)
       # - INSTANCE_ID=i-1234567890abcdef0
-      
-      # Configuration Docker-in-Docker
+
+      # Docker-in-Docker configuration
       - DEFAULT_CONTAINER_IMAGE=ubuntu:22.04
       - DEFAULT_VOLUMES=/var/run/docker.sock:/var/run/docker.sock,/cache:/cache,/data:/data
-    
-    # Montages nécessaires
+
+    # Required volumes
     volumes:
-      # Socket Docker pour Docker-in-Docker
+      # Docker socket for Docker-in-Docker
       - /var/run/docker.sock:/var/run/docker.sock
-      # Cache et données persistantes
-      - agent-test-cache:/cache
-      - agent-test-data:/data
-      - agent-test-work:/opt/azagent/_work
-    
-    # Réseau isolé pour les tests
+      - ${INSTALL_FOLDER}:${INSTALL_FOLDER}
+
+    # Isolated network for testing
     networks:
       - azure-agent-test-network
-    
-    # Healthcheck pour vérifier que l'agent fonctionne
+
+    # Healthcheck to verify agent is running
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'Agent.Listener' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
-    
-    # Limites de ressources pour les tests
+
+    # Resource limits for testing
     deploy:
       resources:
         limits:
@@ -66,28 +64,6 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
-
-  # Service de test pour vérifier la connectivité réseau
-  test-nginx:
-    image: nginx:alpine
-    container_name: test-nginx
-    ports:
-      - "8080:80"
-    networks:
-      - azure-agent-test-network
-    profiles:
-      - test
-    environment:
-      - NGINX_HOST=test-nginx
-      - NGINX_PORT=80
-
-volumes:
-  agent-test-cache:
-    driver: local
-  agent-test-data:
-    driver: local
-  agent-test-work:
-    driver: local
 
 networks:
   azure-agent-test-network:
