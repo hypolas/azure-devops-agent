@@ -41,23 +41,32 @@ This Docker image configures and runs an Azure DevOps agent with container suppo
 ### Example of Volume Conflicts (❌ Wrong)
 ```bash
 # DON'T DO THIS - Missing AGENT_NUMBER causes conflicts
-docker run -d --name agent-1 -v /host/agent-data:/opt/azagent azure-agent
-docker run -d --name agent-2 -v /host/agent-data:/opt/azagent azure-agent
+docker run -d --name agent-1 -v /host/agent-data:/opt/azagent hypolas/azure-devops-agent:latest
+docker run -d --name agent-2 -v /host/agent-data:/opt/azagent hypolas/azure-devops-agent:latest
 # ↑ Both agents will conflict over the same configuration directory
 ```
 
 ### Correct Volume Configuration (✅ Right)
 ```bash
 # DO THIS - AGENT_NUMBER ensures isolation
-docker run -d --name agent-1 -e AGENT_NUMBER="1" -v /host/agent-1:/opt/azagent azure-agent
-docker run -d --name agent-2 -e AGENT_NUMBER="2" -v /host/agent-2:/opt/azagent azure-agent
+docker run -d --name agent-1 \
+  -e AGENT_NUMBER="1" \
+  -e INSTALL_FOLDER="/opt/azagent" \
+  -v /opt/azagent:/opt/azagent \
+  hypolas/azure-devops-agent:latest
+
+docker run -d --name agent-2 \
+  -e AGENT_NUMBER="2" \
+  -e INSTALL_FOLDER="/opt/azagent" \
+  -v /opt/azagent:/opt/azagent \
+  hypolas/azure-devops-agent:latest
 # ↑ Each agent has its own isolated configuration space
 ```
 
 ## Building the Image
 
 ```bash
-docker build -t azure-agent .
+docker build -t hypolas/azure-devops-agent:latest .
 ```
 
 ## Running a Single Agent
@@ -66,14 +75,14 @@ docker build -t azure-agent .
 docker run -d \
   --name azure-agent-1 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd)/cache:/cache \
-  -v $(pwd)/data:/data \
+  -v /opt/azagent:/opt/azagent \
   -e AZP_URL="https://dev.azure.com/your-org" \
   -e AZP_TOKEN="your-token" \
   -e AZP_POOL="your-pool" \
   -e AZP_AGENT_NAME="my-agent" \
   -e AGENT_NUMBER="1" \
-  azure-agent
+  -e INSTALL_FOLDER="/opt/azagent" \
+  hypolas/azure-devops-agent:latest
 ```
 
 ## Multi-Agent Deployment
@@ -172,13 +181,30 @@ docker-compose up -d
 
 ```bash
 # Agent 1
-docker run -d --name azure-agent-1 -e AGENT_NUMBER="1" [other options] azure-agent
+docker run -d \
+  --name azure-agent-1 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/azagent:/opt/azagent \
+  -e AZP_URL="https://dev.azure.com/your-org" \
+  -e AZP_TOKEN="your-token" \
+  -e AZP_POOL="your-pool" \
+  -e AZP_AGENT_NAME="my-agent" \
+  -e AGENT_NUMBER="1" \
+  -e INSTALL_FOLDER="/opt/azagent" \
+  hypolas/azure-devops-agent:latest
 
 # Agent 2
-docker run -d --name azure-agent-2 -e AGENT_NUMBER="2" [other options] azure-agent
-
-# Agent 3
-docker run -d --name azure-agent-3 -e AGENT_NUMBER="3" [other options] azure-agent
+docker run -d \
+  --name azure-agent-2 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/azagent:/opt/azagent \
+  -e AZP_URL="https://dev.azure.com/your-org" \
+  -e AZP_TOKEN="your-token" \
+  -e AZP_POOL="your-pool" \
+  -e AZP_AGENT_NAME="my-agent" \
+  -e AGENT_NUMBER="2" \
+  -e INSTALL_FOLDER="/opt/azagent" \
+  hypolas/azure-devops-agent:latest
 
 # etc...
 ```
@@ -300,19 +326,22 @@ For optimal security, store your Azure DevOps token in AWS Secrets Manager:
 aws secretsmanager create-secret \
     --name "azure-devops-token" \
     --description "Token for Azure DevOps agents" \
-    --secret-string "your-azure-devops-token"
+    --secret-string "your-azure-devops-token" \
+    --region eu-west-1
 
 # Launch agent with Secrets Manager
 docker run -d \
   --name azure-agent-1 \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/azagent:/opt/azagent \
   -e AZP_URL="https://dev.azure.com/your-org" \
   -e AZP_POOL="your-pool" \
   -e AZP_AGENT_NAME="my-agent" \
   -e AGENT_NUMBER="1" \
+  -e INSTALL_FOLDER="/opt/azagent" \
   -e AWS_REGION="eu-west-1" \
   -e AZURE_DEVOPS_TOKEN_SECRET_ARN="arn:aws:secretsmanager:eu-west-1:123456789012:secret:azure-devops-token-AbCdEf" \
-  azure-agent
+  hypolas/azure-devops-agent:latest
 ```
 
 ### Automatic AWS Metadata Retrieval
@@ -321,13 +350,14 @@ The image uses IMDSv2 (Instance Metadata Service v2) to securely retrieve AWS in
 
 ## Architecture
 
-- **One container = One agent** with unique AGENT_NUMBER (1-7)
+- **One container = One agent** with unique AGENT_NUMBER
 - **Configuration Isolation**: AGENT_NUMBER prevents config conflicts in mounted volumes
 - **Automatic Naming**: Agents are named `${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}`
-- **AWS Integration**: INSTANCE_ID is automatically retrieved from AWS metadata (IMDSv2)
+- **AWS Integration**: INSTANCE_ID is automatically retrieved from AWS metadata (IMDSv2), falls back to hostname if not on AWS
 - **Independent Operation**: Each agent operates independently with isolated configurations
 - **Horizontal Scaling**: Deploy more containers with different AGENT_NUMBERs for scaling
 - **Volume Safety**: AGENT_NUMBER ensures safe volume mounting without configuration overwrites
+- **INSTALL_FOLDER Requirement**: Must be identical in environment variable and volume mount path
 
 ## 📁 File Structure
 
