@@ -94,11 +94,13 @@ if [ -z "$INSTANCE_ID" ]; then
     fi
 
     if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "" ]; then
-        echo "Warning: Unable to retrieve AWS INSTANCE_ID, using 'local'"
-        INSTANCE_ID="local"
+        echo "Warning: Unable to retrieve AWS INSTANCE_ID, using hostname"
+        INSTANCE_ID=$(hostname)
     else
-        echo "INSTANCE_ID retrieved: $INSTANCE_ID"
+        echo "INSTANCE_ID retrieved from AWS: $INSTANCE_ID"
     fi
+else
+    echo "INSTANCE_ID provided: $INSTANCE_ID"
 fi
 
 echo "=========================================="
