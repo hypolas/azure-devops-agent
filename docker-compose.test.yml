@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  azure-devops-agent:
+    image: test-azure-agent:latest
+    # image: hypolas/azure-devops-agent:latest
+    container_name: azure-agent-test
+    hostname: azure-agent-test
+    restart: unless-stopped
+    
+    # Variables d'environnement pour tester l'image
+    environment:
+      # Configuration Azure DevOps (OBLIGATOIRES pour un vrai test)
+      # ⚠️ Remplacez ces valeurs par vos vraies valeurs
+      - AZP_URL=https://dev.azure.com/your-org
+      - AZP_TOKEN=test-token
+      - AZP_POOL=aws-pool
+      - AZP_AGENT_NAME=test-${HOSTNAME:-local}
+      - AGENT_NUMBER=1
+      - INSTANCE_ID=i-1234567890abcdef0
+      
+      # Configuration AWS (OPTIONNELLES - pour récupérer le token depuis AWS Secrets Manager)
+      # Si vous utilisez AWS Secrets Manager au lieu d'AZP_TOKEN direct :
+      # - AWS_REGION=eu-west-1
+      # - AZURE_DEVOPS_TOKEN_SECRET_ARN=arn:aws:secretsmanager:eu-west-1:account:secret:azure-devops-token
+      
+      # Configuration EC2 (OPTIONNELLE - pour noms automatiques)
+      # - INSTANCE_ID=i-1234567890abcdef0
+      
+      # Configuration Docker-in-Docker
+      - DEFAULT_CONTAINER_IMAGE=ubuntu:22.04
+      - DEFAULT_VOLUMES=/var/run/docker.sock:/var/run/docker.sock,/cache:/cache,/data:/data
+    
+    # Montages nécessaires
+    volumes:
+      # Socket Docker pour Docker-in-Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Cache et données persistantes
+      - agent-test-cache:/cache
+      - agent-test-data:/data
+      - agent-test-work:/opt/azagent/_work
+    
+    # Réseau isolé pour les tests
+    networks:
+      - azure-agent-test-network
+    
+    # Healthcheck pour vérifier que l'agent fonctionne
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'Agent.Listener' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    
+    # Limites de ressources pour les tests
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # Service de test pour vérifier la connectivité réseau
+  test-nginx:
+    image: nginx:alpine
+    container_name: test-nginx
+    ports:
+      - "8080:80"
+    networks:
+      - azure-agent-test-network
+    profiles:
+      - test
+    environment:
+      - NGINX_HOST=test-nginx
+      - NGINX_PORT=80
+
+volumes:
+  agent-test-cache:
+    driver: local
+  agent-test-data:
+    driver: local
+  agent-test-work:
+    driver: local
+
+networks:
+  azure-agent-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
