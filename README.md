@@ -1,5 +1,8 @@
 # Azure DevOps Docker Agent
 
+**GitHub Repository**: [https://github.com/hypolas/azure-devops-agent](https://github.com/hypolas/azure-devops-agent)
+**Docker Hub Image**: [https://hub.docker.com/r/hypolas/azure-devops-agent](https://hub.docker.com/r/hypolas/azure-devops-agent)
+
 [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)](https://www.docker.com/)
 [![Azure DevOps](https://img.shields.io/badge/azure--devops-agent-blue.svg)](https://azure.microsoft.com/services/devops/)
 [![AWS](https://img.shields.io/badge/aws-secrets--manager-orange.svg)](https://aws.amazon.com/secrets-manager/)
@@ -182,11 +185,12 @@ docker run -d --name azure-agent-3 -e AGENT_NUMBER="3" [other options] azure-age
 
 ### Multi-Agent Deployment Script Example
 
-For a server with 8 vCPUs, following the rule of **2 vCPUs per agent**, you can deploy **4 agents** using this script:
+For a server with 8 vCPUs, following the rule of **2 vCPUs per agent** (this is a subjective recommendation - adjust based on your workload requirements and performance monitoring), you can deploy **4 agents** using this script:
 
 Create a file `deploy-agents.sh`:
 
 ```bash
+
 #!/bin/bash
 # Multi-agent deployment script
 # Rule: 2 vCPUs per agent
@@ -196,7 +200,7 @@ set -e
 
 # Configuration
 TOTAL_VCPUS=$(nproc)
-VCPUS_PER_AGENT=2
+VCPUS_PER_AGENT=2  # Adjust this value based on your workload needs
 MAX_AGENTS=$((TOTAL_VCPUS / VCPUS_PER_AGENT))
 
 echo "Detected $TOTAL_VCPUS vCPUs on this server"
@@ -222,7 +226,7 @@ echo "=========================================="
 
 # Deploy agents in a loop
 for i in $(seq 1 $MAX_AGENTS); do
-    AGENT_NAME="azure-agent-${i}"
+    AGENT_NAME="azure-agent-$i"
 
     echo "Starting agent $i/$MAX_AGENTS: $AGENT_NAME"
 
@@ -240,17 +244,10 @@ for i in $(seq 1 $MAX_AGENTS); do
         -e DEFAULT_CONTAINER_IMAGE="${DEFAULT_CONTAINER_IMAGE:-ubuntu:22.04}" \
         -e DEFAULT_VOLUMES="${DEFAULT_VOLUMES:-/var/run/docker.sock:/var/run/docker.sock,/cache:/cache,/data:/data}" \
         --restart unless-stopped \
-        azure-agent
+        hypolas/azure-devops-agent:latest
 
     echo "✅ Agent $i started: $AGENT_NAME"
 done
-
-echo "=========================================="
-echo "✅ All $MAX_AGENTS agents deployed successfully"
-echo "=========================================="
-
-# Show running agents
-docker ps --filter "name=azure-agent-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
 **Usage:**
@@ -361,3 +358,16 @@ The image uses IMDSv2 (Instance Metadata Service v2) to securely retrieve AWS in
 ---
 
 *Docker image for Azure DevOps agents with AWS Secrets Manager integration - Optimized for modern CI/CD pipelines and DevOps automation.*
+
+## Disclaimer
+
+**This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.**
+
+The developer cannot be held responsible for any problems, data loss, security issues, or any other consequences that may arise from the use of this software. Users are solely responsible for:
+- Proper configuration and deployment
+- Security of credentials and tokens
+- Resource allocation and monitoring
+- Compliance with Azure DevOps and AWS terms of service
+- Any costs incurred from cloud service usage
+
+Use at your own risk.

@@ -24,6 +24,9 @@ cp -r "/opt/dl/"* "$INSTALL_FOLDER/$AGENT_NUMBER/"
 # Go to agent directory
 cd "$INSTALL_FOLDER/$AGENT_NUMBER"
 
+./config.sh remove --unattended --auth pat --token "$AZP_TOKEN"
+sleep 5
+
 # Configure the agent
 ./config.sh \
   --unattended \

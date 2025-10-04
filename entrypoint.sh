@@ -85,13 +85,15 @@ if [ -z "$INSTANCE_ID" ]; then
     # Retrieve IMDSv2 token to secure metadata access
     IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
         -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
-        -s 2>/dev/null)
+        -s 2>/dev/null) || true
 
     if [ -n "$IMDS_TOKEN" ]; then
         # Use token to retrieve instance ID
         INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
-            -s "http://169.254.169.254/latest/meta-data/instance-id" 2>/dev/null)
+            -s "http://169.254.169.254/latest/meta-data/instance-id" 2>/dev/null) || true
     fi
+
+    echo "INSTANCE_ID from IMDSv2: $INSTANCE_ID"
 
     if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "" ]; then
         echo "Warning: Unable to retrieve AWS INSTANCE_ID, using hostname"
