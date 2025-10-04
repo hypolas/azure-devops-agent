@@ -1,4 +1,4 @@
-# Stage temporaire pour extraire la version de l'agent
+# Stage 1: Extraire la version de l'agent
 FROM ubuntu:22.04 AS temp-version
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,88 +13,116 @@ RUN AGENT_VERSION=$(curl -s https://api.github.com/repos/microsoft/azure-pipelin
     echo "$AGENT_VERSION" > /tmp/agent_version.txt && \
     echo "Version détectée: $AGENT_VERSION"
 
-# Stage principal
+# Stage 2: Télécharger l'agent Azure DevOps
+FROM ubuntu:22.04 AS agent-downloader
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    tar \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=temp-version /tmp/agent_version.txt /tmp/agent_version.txt
+
+RUN AGENT_VERSION=$(cat /tmp/agent_version.txt) && \
+    echo "Téléchargement de l'agent Azure DevOps..." && \
+    echo "Version détectée: $AGENT_VERSION" && \
+    \
+    # Détecter l'architecture pour choisir le bon agent
+    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \
+    case "$ARCH" in \
+        amd64|x86_64) AGENT_ARCH="x64" ;; \
+        arm64|aarch64) AGENT_ARCH="arm64" ;; \
+        armhf|armv7l|armv7) AGENT_ARCH="arm" ;; \
+        *) echo "⚠️ Architecture non supportée: $ARCH, utilisation de x64 par défaut" && AGENT_ARCH="x64" ;; \
+    esac && \
+    \
+    echo "Architecture détectée: $ARCH -> Agent: linux-$AGENT_ARCH" && \
+    mkdir -p /opt/azagent && \
+    curl -fsSL "https://download.agent.dev.azure.com/agent/$AGENT_VERSION/vsts-agent-linux-$AGENT_ARCH-$AGENT_VERSION.tar.gz" -o "/tmp/agent.tar.gz" && \
+    tar xzf "/tmp/agent.tar.gz" -C /opt/azagent && \
+    rm "/tmp/agent.tar.gz"
+
+# Stage 3: Télécharger aws-ssm
+FROM ubuntu:22.04 AS aws-ssm-downloader
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    jq \
+    file \
+    unzip \
+    tar \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY download-github-binary.sh /tmp/
+RUN chmod +x /tmp/download-github-binary.sh && \
+    /tmp/download-github-binary.sh "hypolas/aws-ssm-light" "aws-ssm"
+
+# Stage 4: Télécharger Docker CLI
+FROM ubuntu:22.04 AS docker-downloader
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage final: Image runtime minimale
 FROM ubuntu:22.04
 
 # Éviter les questions interactives pendant l'installation
 ENV DEBIAN_FRONTEND=noninteractive
-# Ne pas installer les paquets recommandés pour réduire la taille
-ENV APT_GET_INSTALL="apt-get install -y --no-install-recommends"
-
-# Installer les dépendances nécessaires + dépendances .NET
-RUN apt-get update && $APT_GET_INSTALL \
-    curl \
-    ca-certificates \
-    apt-transport-https \
-    lsb-release \
-    gnupg \
+# Installer seulement les dépendances runtime nécessaires
+RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     jq \
     git \
-    unzip \
-    tar \
-    grep \
+    # Dépendances .NET runtime pour l'agent Azure DevOps
     libicu70 \
     liblttng-ust1 \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# aws-ssm est téléchargé directement depuis hypolas/aws-ssm-light
-# Binaire pré-compilé léger (~10MB) vs AWS CLI (~100MB+)
-
-# Copier la version de l'agent depuis le stage temporaire
+# Copier les binaires depuis les stages de build
 COPY --from=temp-version /tmp/agent_version.txt /tmp/agent_version.txt
-
-# Télécharger des binaires depuis GitHub
-COPY download-github-binary.sh /tmp/
-RUN chmod +x /tmp/download-github-binary.sh
-
-# Variables pour configurer aws-ssm
-# aws-ssm sera installé depuis hypolas/aws-ssm-light
-ARG INSTALL_AWS_SSM="true"
-
-# Installer aws-ssm (remplace AWS CLI pour Secrets Manager)
-RUN if [ "$INSTALL_AWS_SSM" = "true" ]; then \
-        echo "📦 Installation d'aws-ssm depuis hypolas/aws-ssm-light" && \
-        /tmp/download-github-binary.sh "hypolas/aws-ssm-light" "aws-ssm" && \
-        echo "✅ aws-ssm installé (~10MB vs ~100MB+ pour AWS CLI)" ; \
-    fi && \
-    rm -f /tmp/download-github-binary.sh
-
-# Installer Docker CLI
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update \
-    && $APT_GET_INSTALL docker-ce-cli docker-compose-plugin \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=agent-downloader /opt/azagent/ /opt/azagent/
+COPY --from=aws-ssm-downloader /usr/local/bin/aws-ssm /usr/local/bin/aws-ssm
+COPY --from=docker-downloader /usr/bin/docker /usr/bin/docker
+COPY --from=docker-downloader /usr/libexec/docker/cli-plugins/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
 
 # Créer l'utilisateur azureagent
 RUN useradd -m -s /bin/bash azureagent \
     && usermod -aG sudo azureagent \
     && echo "azureagent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Créer les répertoires nécessaires
-RUN mkdir -p /opt/azagent \
-    && mkdir -p /opt/setup-scripts \
+# Créer les répertoires nécessaires et ajuster les permissions
+RUN mkdir -p /opt/setup-scripts \
     && mkdir -p /cache \
     && mkdir -p /data \
+    && mkdir -p /usr/libexec/docker/cli-plugins \
     && chown -R azureagent:azureagent /opt/azagent \
-    && chown -R azureagent:azureagent /opt/setup-scripts
-
-# Télécharger l'agent Azure DevOps selon agent2.txt
-WORKDIR /opt/azagent
-RUN AGENT_VERSION=$(cat /tmp/agent_version.txt) && \
-    echo "Téléchargement de l'agent Azure DevOps..." && \
-    echo "Version détectée: $AGENT_VERSION" && \
-    curl -fsSL "https://download.agent.dev.azure.com/agent/$AGENT_VERSION/vsts-agent-linux-x64-$AGENT_VERSION.tar.gz" -o "vsts-agent-linux-x64-$AGENT_VERSION.tar.gz" && \
-    mkdir -p agent && \
-    tar xzf "vsts-agent-linux-x64-$AGENT_VERSION.tar.gz" -C agent && \
-    rm "vsts-agent-linux-x64-$AGENT_VERSION.tar.gz" && \
-    chown -R azureagent:azureagent /opt/azagent
+    && chown -R azureagent:azureagent /opt/setup-scripts \
+    && chmod +x /usr/local/bin/aws-ssm \
+    && chmod +x /usr/bin/docker \
+    && chmod +x /usr/libexec/docker/cli-plugins/docker-compose
 
 # Installer les dépendances .NET de l'agent Azure DevOps au build
-RUN cd /opt/azagent/agent && \
-    if [ -f "./bin/installdependencies.sh" ]; then \
+WORKDIR /opt/azagent
+RUN if [ -f "./bin/installdependencies.sh" ]; then \
         echo "Installation des dépendances .NET de l'agent Azure DevOps..." && \
         ./bin/installdependencies.sh; \
     fi && \
