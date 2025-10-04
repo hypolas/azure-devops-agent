@@ -40,9 +40,9 @@ RUN AGENT_VERSION=$(cat /tmp/agent_version.txt) && \
     esac && \
     \
     echo "Architecture détectée: $ARCH -> Agent: linux-$AGENT_ARCH" && \
-    mkdir -p /opt/azagent && \
+    mkdir -p /opt/azagent/agent && \
     curl -fsSL "https://download.agent.dev.azure.com/agent/$AGENT_VERSION/vsts-agent-linux-$AGENT_ARCH-$AGENT_VERSION.tar.gz" -o "/tmp/agent.tar.gz" && \
-    tar xzf "/tmp/agent.tar.gz" -C /opt/azagent && \
+    tar xzf "/tmp/agent.tar.gz" -C /opt/azagent/agent && \
     rm "/tmp/agent.tar.gz"
 
 # Stage 3: Télécharger aws-ssm
@@ -100,6 +100,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copier les binaires depuis les stages de build
 COPY --from=temp-version /tmp/agent_version.txt /tmp/agent_version.txt
 COPY --from=agent-downloader /opt/azagent/ /opt/azagent/
+COPY --from=agent-downloader /opt/azagent/agent/ /opt/azagent/agent/
 COPY --from=aws-ssm-downloader /usr/local/bin/aws-ssm /usr/local/bin/aws-ssm
 COPY --from=docker-downloader /usr/bin/docker /usr/bin/docker
 COPY --from=docker-downloader /usr/libexec/docker/cli-plugins/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
@@ -108,6 +109,9 @@ COPY --from=docker-downloader /usr/libexec/docker/cli-plugins/docker-compose /us
 RUN useradd -m -s /bin/bash azureagent \
     && usermod -aG sudo azureagent \
     && echo "azureagent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates
 
 # Créer les répertoires nécessaires et ajuster les permissions
 RUN mkdir -p /opt/setup-scripts \
