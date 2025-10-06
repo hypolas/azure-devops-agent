@@ -139,7 +139,7 @@ echo "Adding capabilities..."
 
 echo "Configuration complete. Starting agent..."
 
-# Start the agent
+# Start the agent with sg to apply dockerhost group and security context
 echo "Starting agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}..."
 cd "$INSTALL_FOLDER/$AGENT_NUMBER"
 sg dockerhost -c "./run.sh" &
