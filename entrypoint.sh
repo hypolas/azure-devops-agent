@@ -142,5 +142,5 @@ echo "Configuration complete. Starting agent..."
 # Start the agent
 echo "Starting agent ${AZP_AGENT_NAME}-${AGENT_NUMBER}-${INSTANCE_ID}..."
 cd "$INSTALL_FOLDER/$AGENT_NUMBER"
-./run.sh &
+sg dockerhost -c "./run.sh" &
 wait $!
