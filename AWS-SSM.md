@@ -1,6 +1,6 @@
 # Binaire AWS SSM
 
-**aws-ssm** est automatiquement installé depuis le dépôt `hypolas/aws-ssm-light`.
+**aws-ssm** est automatiquement installé depuis le dépôt `hypolas/aws-ssm-lite`.
 
 ## Avantages du binaire aws-ssm
 - ✅ **Léger** : ~10MB vs ~100MB+ pour AWS CLI

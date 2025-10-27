@@ -5,7 +5,7 @@ services:
     build:
       context: .
       args:
-        # aws-ssm installed by default (hypolas/aws-ssm-light)
+        # aws-ssm installed by default (hypolas/aws-ssm-lite)
         INSTALL_AWS_SSM: "true"
 
     container_name: azure-devops-agent

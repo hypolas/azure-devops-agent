@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🧪 Test d'intégration aws-ssm (hypolas/aws-ssm-light)"
+echo "🧪 Test d'intégration aws-ssm (hypolas/aws-ssm-lite)"
 echo "================================================="
 
 # Test 1: Vérifier si aws-ssm est disponible
@@ -69,7 +69,7 @@ fi
 echo
 echo "📊 Résumé du test aws-ssm"
 echo "========================"
-echo "🎯 Binaire officiel: hypolas/aws-ssm-light"
+echo "🎯 Binaire officiel: hypolas/aws-ssm-lite"
 echo "📦 Taille optimisée: ~10MB vs ~100MB+ (AWS CLI)"
 echo "⚡ Performance: ~50ms vs ~1-2s (AWS CLI)"
 echo "🔒 Sécurité: Tests automatisés + checksums SHA256"

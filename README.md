@@ -99,7 +99,7 @@ services:
     build:
       context: .
       args:
-        # aws-ssm installed by default (hypolas/aws-ssm-light)
+        # aws-ssm installed by default (hypolas/aws-ssm-lite)
         INSTALL_AWS_SSM: "true"
 
     container_name: azure-devops-agent
@@ -299,7 +299,7 @@ chmod +x deploy-agents.sh
 - 🔢 **Multi-instance**: Multiple agent management via AGENT_NUMBER
 - 🌐 **Production-ready**: Optimized for cloud environments
 
-### ⚡ Optimized aws-ssm Binary (hypolas/aws-ssm-light)
+### ⚡ Optimized aws-ssm Binary (hypolas/aws-ssm-lite)
 
 The image automatically integrates the **aws-ssm binary** to replace AWS CLI:
 

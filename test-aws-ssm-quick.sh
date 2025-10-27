@@ -36,7 +36,7 @@ for platform in "${PLATFORMS[@]}"; do
         echo 'Recherche de aws-ssm pour: '\$OS'-'\$GITHUB_ARCH
         
         # Récupérer les assets depuis GitHub
-        ASSETS=\$(curl -s https://api.github.com/repos/hypolas/aws-ssm-light/releases/latest | jq -r '.assets[].browser_download_url')
+        ASSETS=\$(curl -s https://api.github.com/repos/hypolas/aws-ssm-lite/releases/latest | jq -r '.assets[].browser_download_url')
         
         echo 'Assets disponibles:'
         echo \"\$ASSETS\"

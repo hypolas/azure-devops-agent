@@ -88,7 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
 COPY download-github-binary.sh /tmp/
 RUN chmod +x /tmp/download-github-binary.sh
 RUN echo "Testing aws-ssm download for $platform..." && \\
-    if /tmp/download-github-binary.sh "hypolas/aws-ssm-light" "aws-ssm"; then \\
+    if /tmp/download-github-binary.sh "hypolas/aws-ssm-lite" "aws-ssm"; then \\
         echo "✅ aws-ssm disponible pour $platform"; \\
         aws-ssm --version 2>/dev/null || echo "Installed but version not available"; \\
     else \\

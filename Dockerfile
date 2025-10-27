@@ -61,7 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY download-github-binary.sh /tmp/
 RUN chmod +x /tmp/download-github-binary.sh && \
-    /tmp/download-github-binary.sh "hypolas/aws-ssm-light" "aws-ssm"
+    /tmp/download-github-binary.sh "hypolas/aws-ssm-lite" "aws-ssm"
 
 # Stage 4: Download Docker CLI
 FROM ubuntu:22.04 AS docker-downloader
