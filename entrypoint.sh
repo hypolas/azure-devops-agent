@@ -38,11 +38,11 @@ if [ -z "$AZP_TOKEN" ]; then
 			echo "Using aws-ssm (hypolas/aws-ssm-lite)..."
 			# Syntax: aws-ssm <secret-id> [region]
 			SECRET_TOKEN=$(aws-ssm "${AZURE_DEVOPS_TOKEN_SECRET_ARN}" "${AWS_REGION}" 2>/dev/null)
-		elif command -v light_ssm >/dev/null 2>&1; then
-			echo "Using light_ssm (fallback)..."
-			SECRET_TOKEN=$(light_ssm "${AZURE_DEVOPS_TOKEN_SECRET_ARN}" "${AWS_REGION}" 2>/dev/null)
+		elif command -v lite_ssm >/dev/null 2>&1; then
+			echo "Using lite_ssm (fallback)..."
+			SECRET_TOKEN=$(lite_ssm "${AZURE_DEVOPS_TOKEN_SECRET_ARN}" "${AWS_REGION}" 2>/dev/null)
 		else
-			echo "❌ No AWS Secrets Manager client available (aws-ssm or light_ssm)"
+			echo "❌ No AWS Secrets Manager client available (aws-ssm or lite_ssm)"
 			echo "Install aws-ssm from hypolas/aws-ssm-lite or enable INSTALL_AWS_SSM=true"
 			exit 1
 		fi

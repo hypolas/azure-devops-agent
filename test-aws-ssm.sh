@@ -40,14 +40,14 @@ else
     echo "⚠️ Impossible de tester aws-ssm"
 fi
 
-# Test 4: Comparaison avec light_ssm (si disponible)
+# Test 4: Comparaison avec lite_ssm (si disponible)
 echo
-echo "4️⃣ Comparaison avec light_ssm..."
-if command -v light_ssm >/dev/null 2>&1; then
-    echo "🔍 light_ssm encore présent - il sera utilisé en fallback"
-    echo "📍 Emplacement light_ssm: $(which light_ssm)"
+echo "4️⃣ Comparaison avec lite_ssm..."
+if command -v lite_ssm >/dev/null 2>&1; then
+    echo "🔍 lite_ssm encore présent - il sera utilisé en fallback"
+    echo "📍 Emplacement lite_ssm: $(which lite_ssm)"
 else
-    echo "✅ light_ssm supprimé - aws-ssm sera utilisé en priorité"
+    echo "✅ lite_ssm supprimé - aws-ssm sera utilisé en priorité"
 fi
 
 # Test 5: Simulation du script entrypoint
@@ -58,9 +58,9 @@ echo "🔄 Test de la détection automatique du client..."
 if command -v aws-ssm >/dev/null 2>&1; then
     echo "✅ aws-ssm sera utilisé par entrypoint.sh"
     echo "💡 Commande: aws-ssm \"\$AZURE_DEVOPS_TOKEN_SECRET_ARN\" \"\$AWS_REGION\""
-elif command -v light_ssm >/dev/null 2>&1; then
-    echo "⚠️ light_ssm sera utilisé en fallback par entrypoint.sh"
-    echo "💡 Commande: light_ssm \"\$AZURE_DEVOPS_TOKEN_SECRET_ARN\" \"\$AWS_REGION\""
+elif command -v lite_ssm >/dev/null 2>&1; then
+    echo "⚠️ lite_ssm sera utilisé en fallback par entrypoint.sh"
+    echo "💡 Commande: lite_ssm \"\$AZURE_DEVOPS_TOKEN_SECRET_ARN\" \"\$AWS_REGION\""
 else
     echo "❌ Aucun client AWS Secrets Manager disponible"
     echo "💡 Activez INSTALL_AWS_SSM=true dans le build"
